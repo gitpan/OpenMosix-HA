@@ -4,10 +4,10 @@ use OpenMosix::HA;
 
 my $ha=new OpenMosix::HA;
 # $ha->{clinit_s}='/tmp/clinit.s';
-warn $ha->{mynode};
-warn join ' ', $ha->nodes();
-warn $ha->{clinit_s};
+# warn $ha->{mynode};
+# warn join ' ', $ha->nodes();
+# warn $ha->{clinit_s};
 $ha->init;
-warn $ha->{init}{socket};
+# warn $ha->{init}{socket};
 $ha->monitor();
 
