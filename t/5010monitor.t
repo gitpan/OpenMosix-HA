@@ -7,7 +7,7 @@ require "t/utils.pl";
 # BEGIN { plan tests => 14, todo => [3,4] }
 BEGIN { plan tests => 0 }
 
-exit;
+exit unless @ARGV;
 
 use OpenMosix::HA;
 use Data::Dump qw(dump);

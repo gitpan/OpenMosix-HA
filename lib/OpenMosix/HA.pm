@@ -8,11 +8,25 @@ use Data::Dump qw(dump);
 BEGIN {
 	use Exporter ();
 	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.532;
+	$VERSION     = 0.537;
 	@ISA         = qw (Exporter);
 	@EXPORT      = qw ();
 	@EXPORT_OK   = qw ();
 	%EXPORT_TAGS = ();
+}
+
+sub cleanexit
+{
+  my $self=shift;
+  $self->cleanup;
+  exit 0;
+}
+
+sub cleanup
+{
+  my $self=shift;
+  unlink $self->{hastat};
+  unlink $self->{clstat};
 }
 
 sub debug
@@ -216,6 +230,10 @@ sub init
   # start daemon
   unless (fork())
   {
+    $self->cleanup;
+    Event->signal(signal=>"INT" ,cb=>[$self,"cleanexit"]);
+    Event->signal(signal=>"QUIT",cb=>[$self,"cleanexit"]);
+    Event->signal(signal=>"TERM",cb=>[$self,"cleanexit"]);
     my $init = Cluster::Init->daemon(%parms);
     debug "daemon exiting";
     exit;
@@ -479,10 +497,12 @@ sub hastat
     my $base=$self->nodebase($node);
     my $file="$base/clstat";
     next unless -f $file;
-    my $age = -M $file;
-    debug "$node age $age\n";
     # STOMITH stale nodes
-    if ($age > $self->{timeout}/86400)
+    my $mtime = (stat($file))[9];
+    debug "$node age $mtime\n";
+    my $mintime = time - $self->{timeout};
+    warn "$file mtime $mtime mintime $mintime\n";
+    if ($mtime < $mintime)
     {
       debug "$node is old\n";
       unless($node == $self->{mynode})
@@ -702,13 +722,6 @@ sub uniq
     push @out, $in unless grep /^$in$/, @out;
   }
   return @out;
-}
-
-sub DESTROY
-{
-  my $self=shift;
-  unlink $self->{hastat};
-  unlink $self->{clstat};
 }
 
 =back

@@ -5,6 +5,7 @@ MANIFEST.SKIP
 Makefile.PL
 README
 TODO
+mosha
 lib/OpenMosix/HA.pm
 t/01_ini.t
 t/1010nodes.t
