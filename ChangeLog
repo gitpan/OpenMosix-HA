@@ -1,3 +1,7 @@
+2003-04-01 20:09  stevegt
+
+	* MANIFEST, lib/OpenMosix/HA.pm: update MANIFEST
+
 2003-04-01 18:03  stevegt
 
 	* TODO, lib/OpenMosix/HA.pm, t/1010nodes.t, t/1020nodebase.t,
