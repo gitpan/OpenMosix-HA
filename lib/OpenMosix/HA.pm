@@ -8,7 +8,7 @@ use Data::Dump qw(dump);
 BEGIN {
 	use Exporter ();
 	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.537;
+	$VERSION     = 0.538;
 	@ISA         = qw (Exporter);
 	@EXPORT      = qw ();
 	@EXPORT_OK   = qw ();
@@ -268,6 +268,7 @@ sub monitor
   my $runtime=shift || 999999999;
   $self->getcltab($self->nodes);
   $self->init() unless $self->{init};
+  my $node = $self->{mynode};
   my $init=$self->{init};
   my $start=time();
   my $stop=$start + $runtime;
@@ -276,6 +277,7 @@ sub monitor
     my @node = $self->nodes();
     unless($self->quorum(@node))
     {
+      warn "node $node: quorum lost: can only see nodes @node\n";
       $self->haltall;
       run(30);
       next;
@@ -501,7 +503,7 @@ sub hastat
     my $mtime = (stat($file))[9];
     debug "$node age $mtime\n";
     my $mintime = time - $self->{timeout};
-    warn "$file mtime $mtime mintime $mintime\n";
+    debug "$file mtime $mtime mintime $mintime\n";
     if ($mtime < $mintime)
     {
       debug "$node is old\n";
@@ -575,11 +577,12 @@ sub nodes
   return @upnode;
 }
 
-# halt all resource groups if we've lost quorum
+# detect we've lost quorum
 sub quorum
 {
   my ($self,@node)=@_;
   $self->{quorum}||=0;
+  warn "quorum count: ".$self->{quorum}."\n";
   if (@node < $self->{quorum} * .6)
   {
     return 0;
@@ -732,27 +735,10 @@ sub uniq
 
 XXX list files and their purposes; refer to Cluster::Init default filenames
 
-=head1 AVAILABILITY
+=head1 SUPPORT
 
-This module is based on my IS::Init module, which is already in
-production and available from CPAN.  My wife and I had hoped to have a
-beta version of OpenMosix::HA available by the time of Moshe Bar's Feb
-5 2003 openMosix talk at the Silicon Valley Linux Users Group.
-
-Then I unexpectedly became involved in data collection for Columbia's
-California transit -- SVLUG member Ian Kluft was one of the few
-witnesses.  We decided it best to defer work on this module in favor
-of improving our understanding of where the orbiter's breakup actually
-began, relaying our results to Johnson Space Center and working with
-media to encourage others to do the same.  These efforts by ourselves
-  and others have been successful beyond what any of us expected --
-NASA JSC emergency ops responded to us personally and as of this
-writing a search in California is already underway.  But I don't have
-a Perl module for you yet.
-
-For a production version of OpenMosix::HA, check CPAN.org,
-TerraLuna.Org, or Infrastructures.Org in early March 2003, or contact
-me.  Beta versions will become available as time permits before then. 
+XXX describe commercial support available for both openMosix and
+OpenMosix::HA
 
 =head1 AUTHOR
 
