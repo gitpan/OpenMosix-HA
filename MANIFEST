@@ -1,0 +1,9 @@
+LICENSE
+Changes
+Makefile.PL
+README
+MANIFEST.SKIP
+.cvsignore
+lib/OpenMosix/HA.pm
+t/01_ini.t
+MANIFEST
