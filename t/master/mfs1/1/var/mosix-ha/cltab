@@ -18,6 +18,8 @@ bad:bad1:test:test:/bin/false
 bad:bad2:start:wait:/bin/echo "bad1" > t/out2
 del:del1:start:wait:/bin/true
 baz:baz1:test:test:/bin/true
+sig:sig1:start:wait:/bin/echo "sig starting" > t/out
+sig:sig2:stop:wait:/bin/echo "sig stopping" > t/out
 
 # ### junk below here
 # hellogrp:hello2:2:respawn:/bin/echo "hello world!" >> t/out

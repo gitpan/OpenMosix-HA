@@ -19,11 +19,11 @@ my $ha = new OpenMosix::HA
 );
 
 ok($ha);
-$ha->init();
-# warn $ha->{init}->{'socket'};
-ok($ha->{init});
-# my $can=$ha->{init}->can('shutdown');
-$ha->{init}->shutdown;
+$ha->clinit();
+# warn $ha->{clinit}->{'socket'};
+ok($ha->{clinit});
+# my $can=$ha->{clinit}->can('shutdown');
+$ha->{clinit}->shutdown;
 waitdown();
 
 # use GraphViz::Data::Grapher;

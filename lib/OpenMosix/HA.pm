@@ -1,33 +1,33 @@
 package OpenMosix::HA;
 use strict;
+use warnings;
 use Cluster::Init;
-use Event qw(one_event loop unloop);
+# use Event qw(one_event loop unloop);
 use Time::HiRes qw(time);
 use Data::Dump qw(dump);
+use Sys::Syslog;
 
 BEGIN {
-	use Exporter ();
-	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.542;
-	@ISA         = qw (Exporter);
-	@EXPORT      = qw ();
-	@EXPORT_OK   = qw ();
-	%EXPORT_TAGS = ();
+  use Exporter ();
+  use vars qw (
+    $VERSION 
+    @ISA
+    @EXPORT
+    @EXPORT_OK
+    %EXPORT_TAGS
+    $LOGOPEN
+    $PROGRAM
+  );
+  $VERSION     = 0.555;
+  @ISA         = qw (Exporter);
+  @EXPORT      = qw ();
+  @EXPORT_OK   = qw ();
+  %EXPORT_TAGS = ();
+  $LOGOPEN     = 0;
+  $PROGRAM=$0; $PROGRAM =~ s/.*\///;
 }
 
-sub cleanexit
-{
-  my $self=shift;
-  $self->cleanup;
-  exit 0;
-}
-
-sub cleanup
-{
-  my $self=shift;
-  unlink $self->{hastat};
-  unlink $self->{clstat};
-}
+# COMMON
 
 sub debug
 {
@@ -65,6 +65,40 @@ sub debug
       $elapsed);
     }
   }
+}
+
+sub logger
+{
+  my $level=shift;
+  my $msg = join(' ',@_);
+  openlog($PROGRAM,,"daemon") unless $LOGOPEN;
+  $LOGOPEN=1;
+  debug $msg;
+  syslog($level,$msg);
+}
+
+sub logcrit
+{
+  my $msg = join(' ',@_);
+  logger "crit", $msg;
+}
+
+sub logalert
+{
+  my $msg = join(' ',@_);
+  logger "alert", $msg;
+}
+
+sub loginfo
+{
+  my $msg = join(' ',@_);
+  logger "info", $msg;
+}
+
+sub logdebug
+{
+  my $msg = join(' ',@_);
+  logger "debug", $msg;
 }
 
 sub _stacktrace
@@ -360,7 +394,7 @@ testing purposes.
 
 The local path under C</> where the module should look for the
 C<hactl> and C<cltab> files, and where it should put clstat
-  and clinit.s; this is also the subpath where it should look for
+and clinit.s; this is also the subpath where it should look for
 these things on other machines, under C</mfsbase/NODE>.  Defaults to
 C<var/mosix-ha>.
 
@@ -400,6 +434,7 @@ sub new
   $self->{clinit_s}  ||= "/".$self->{varpath}."/clinit.s";
   $self->{timeout}   ||= 60;
   $self->{cycletime} ||= 1;
+  $self->{balance}   ||= 1.5;
   $self->{stomith}   ||= sub{$self->stomith(@_)};
   $self->{mybase}      = $self->nodebase($self->{mynode});
   $self->{hactl}       = $self->{mybase}."/hactl";
@@ -413,7 +448,7 @@ sub new
   return $self;
 }
 
-sub init
+sub clinit
 {
   my $self=shift;
   my %parms = (
@@ -421,76 +456,56 @@ sub init
     'cltab' => $self->{cltab},
     'socket' => $self->{clinit_s}
   );
-  # start daemon
+  # start Cluster::Init daemon
   unless (fork())
   {
+    $0.=" [Cluster::Init->daemon]";
     $self->cleanup;
-    Event->signal(signal=>"INT" ,cb=>[$self,"cleanexit"]);
-    Event->signal(signal=>"QUIT",cb=>[$self,"cleanexit"]);
-    Event->signal(signal=>"TERM",cb=>[$self,"cleanexit"]);
-    my $init = Cluster::Init->daemon(%parms);
+    $self->getcltab($self->nodes);
+    require Event;
+    import Event;
+    # noop; only -9 should be able to kill; we do orderly shutdown
+    # in monitor
+    Event->signal(signal=>"HUP" ,cb=>sub{1});
+    Event->signal(signal=>"INT" ,cb=>sub{1});
+    Event->signal(signal=>"QUIT",cb=>sub{1});
+    Event->signal(signal=>"TERM",cb=>sub{1});
+    my $clinit = Cluster::Init->daemon(%parms);
     debug "daemon exiting";
     exit;
   }
-  run(1);
+  sleep(1);
   # initialize client
-  $self->{init} = Cluster::Init->client(%parms);
-  return $self->{init};
+  $self->{clinit} = Cluster::Init->client(%parms);
+  return $self->{clinit};
 }
 
-=head2 monitor()
+### MONITOR
 
-Starts the monitor daemon.  Does not return.  
-
-The monitor does the real work for this module; it ensures the
-resource groups in L</"/var/mosix-ha/cltab"> are each running
-somewhere in the cluster, at the runlevels specified in
-L</"/var/mosix-ha/hactl">.  Any resource groups found not running are
-candidates for a restart on the local node.  
-
-Before restarting a resource group, the local monitor announces its
-intentions in the local C<clstat> file, and observes C<clstat> on
-other nodes.  If the monitor on any other node also intends to start
-the same resource group, then the local monitor will detect this and
-cancel its own restart.  The checks and restarts are staggered by
-random times on various nodes to prevent oscillation.
-
-See L</CONCEPTS>.
-
-=cut
-
-sub monitor
+sub cleanexit
 {
   my $self=shift;
-  my $runtime=shift || 999999999;
-  $self->getcltab($self->nodes);
-  $self->init() unless $self->{init};
-  my $node = $self->{mynode};
-  my $init=$self->{init};
-  my $start=time();
-  my $stop=$start + $runtime;
-  while(time < $stop)
-  {
-    my @node = $self->nodes();
-    unless($self->quorum(@node))
-    {
-      warn "node $node: quorum lost: can only see nodes @node\n";
-      $self->haltall;
-      run(30);
-      next;
-    }
-    # build consolidated clstat 
-    my ($hastat,$stomlist)=$self->hastat(@node);
-    # STOMITH stale nodes
-    $self->stomscan($stomlist) if time > $start + 120;
-    # get and read latest hactl and cltab
-    my $hactl=$self->gethactl(@node);
-    my $cltab=$self->getcltab(@node);
-    $self->scangroups($hastat,$hactl,@node);
-    warn "node $self->{mynode} cycletime $self->{cycletime}\n";
-    run($self->cycletime) if $self->cycletime + time < $stop;
-  }
-  return 1;
+  loginfo "calling haltwait";
+  $self->haltwait;
+  loginfo "calling shutdown";
+  $self->{clinit}->shutdown();
+  loginfo "calling cleanup";
+  $self->cleanup;
+  loginfo "exiting";
+  exit 0;
+}
+
+sub cleanup
+{
+  my $self=shift;
+  # unlink $self->{hastat};
+  unlink $self->{clstat};
+}
+
+sub backoff
+{
+  my $self=shift;
+  $self->{cycletime}+=rand(10);
 }
 
 sub cycle_faster
@@ -504,12 +519,6 @@ sub cycle_slower
 {
   my $self=shift;
   $self->{cycletime}*=rand()+1;
-}
-
-sub backoff
-{
-  my $self=shift;
-  $self->{cycletime}+=rand(10);
 }
 
 sub cycletime
@@ -618,7 +627,7 @@ sub getcltab
   if ($self->getlatest("cltab",@node))
   {
     # reread cltab if it changed
-    # if $self->{init}
+    # if $self->{clinit}
     # XXX $self->tell("::ALL::","::REREAD::");
   }
   # return the contents
@@ -684,6 +693,29 @@ sub haltall
   }
 }
 
+# halt all local resource groups and wait for them to complete
+sub haltwait
+{
+  my $self=shift;
+  my $hastat;
+  loginfo "shutting down resource groups";
+  my @group;
+  do
+  {
+    $self->haltall;
+    sleep(1);
+    ($hastat)=$self->hastat($self->{mynode});
+    @group=keys %$hastat;
+    loginfo "still active: @group";
+    for my $group (@group)
+    {
+      my $level=$hastat->{$group}{$self->{mynode}}{level};
+      my $state=$hastat->{$group}{$self->{mynode}}{state};
+      loginfo "$group: level=$level, state=$state";
+    }
+  } while (@group);
+}
+
 # build consolidated clstat and STOMITH stale nodes
 sub hastat
 {
@@ -722,11 +754,73 @@ sub hastat
       $hastat->{$group}{$node}{state}=$state;
     }
   }
+  # note that this file is not always populated with the entire node
+  # set -- depends on how hastat() was called!
   open(HASTAT,">".$self->{hastat}."tmp") || die $!;
   print HASTAT (dump $hastat);
   close HASTAT;
   rename($self->{hastat}."tmp", $self->{hastat}) || die $!;
   return ($hastat,\@stomlist);
+}
+
+=head2 monitor()
+
+Starts the monitor daemon.  Does not return.  
+
+The monitor does the real work for this module; it ensures the
+resource groups in L</"/var/mosix-ha/cltab"> are each running
+somewhere in the cluster, at the runlevels specified in
+L</"/var/mosix-ha/hactl">.  Any resource groups found not running are
+candidates for a restart on the local node.  
+
+Before restarting a resource group, the local monitor announces its
+intentions in the local C<clstat> file, and observes C<clstat> on
+other nodes.  If the monitor on any other node also intends to start
+the same resource group, then the local monitor will detect this and
+cancel its own restart.  The checks and restarts are staggered by
+random times on various nodes to prevent oscillation.
+
+See L</CONCEPTS>.
+
+=cut
+
+sub monitor
+{
+  my $self=shift;
+  my $runtime=shift || 999999999;
+  my $start=time();
+  my $stop=$start + $runtime;
+  # Event->signal(signal=>"HUP" ,cb=>[$self,"cleanexit"]);
+  # Event->signal(signal=>"INT" ,cb=>[$self,"cleanexit"]);
+  # Event->signal(signal=>"QUIT",cb=>[$self,"cleanexit"]);
+  # Event->signal(signal=>"TERM",cb=>[$self,"cleanexit"]);
+  $SIG{HUP}=sub{$self->cleanexit};
+  $SIG{INT}=sub{$self->cleanexit};
+  $SIG{QUIT}=sub{$self->cleanexit};
+  $SIG{TERM}=sub{$self->cleanexit};
+  while(time < $stop)
+  {
+    my @node = $self->nodes();
+    unless($self->quorum(@node))
+    {
+      my $node = $self->{mynode};
+      logcrit "node $node: quorum lost: can only see nodes @node\n";
+      $self->haltwait;
+      sleep(30);
+      next;
+    }
+    # build consolidated clstat 
+    my ($hastat,$stomlist)=$self->hastat(@node);
+    # STOMITH stale nodes
+    $self->stomscan($stomlist) if time > $start + 120;
+    # get and read latest hactl and cltab
+    my $hactl=$self->gethactl(@node);
+    my $cltab=$self->getcltab(@node);
+    $self->scangroups($hastat,$hactl,@node);
+    logdebug "node $self->{mynode} cycletime $self->{cycletime}\n";
+    sleep($self->cycletime) if $self->cycletime + time < $stop;
+  }
+  return 1;
 }
 
 sub mosnode
@@ -774,12 +868,12 @@ sub nodes
   return @upnode;
 }
 
-# detect we've lost quorum
+# detect if we've lost quorum
 sub quorum
 {
   my ($self,@node)=@_;
   $self->{quorum}||=0;
-  warn "quorum count: ".$self->{quorum}."\n";
+  logdebug "quorum count: ".$self->{quorum}."\n";
   if (@node < $self->{quorum} * .6)
   {
     return 0;
@@ -788,7 +882,7 @@ sub quorum
   return 1;
 }
 
-sub run
+sub runXXX
 {
   my $seconds=shift;
   Event->timer(at=>time() + $seconds,cb=>sub{unloop()});
@@ -804,7 +898,7 @@ sub scangroups
   my $hastat=shift;
   my $hactl=shift;
   my @node=@_;
-  my $init=$self->{init};
+  my $clinit=$self->{clinit};
   # for each group in hastat or hactl
   for my $group (uniq(keys %$hastat, keys %$hactl))
   {
@@ -850,7 +944,7 @@ sub scangroups
     {
       $self->cycletime(10);
       # balance startup across all nodes
-      next if rand(scalar @node) > 1.5;
+      next if rand(scalar @node) > $self->{balance};
       # start planning
       $self->tell($group,"plan");
       next;
@@ -892,7 +986,7 @@ sub sh
 sub stomith
 {
   my ($self,$node)=@_;
-  warn "STOMITH node $node\n";
+  logalert "STOMITH node $node\n";
 }
 
 sub stomscan
@@ -912,7 +1006,7 @@ sub tell
   my $group=shift;
   my $level=shift;
   debug "tell $group $level";
-  $self->{init}->tell($group,$level);
+  $self->{clinit}->tell($group,$level);
 }
 
 sub uniq
@@ -1019,14 +1113,6 @@ Commercial support for B<OpenMosix:::HA> is available at
 L<http://clusters.TerraLuna.Org>.  On that web site, you'll also find
 pointers to the latest version, a community mailing list, and other
 cluster management software.
-
-Commercial support for B<openMosix> is available from the openMosix
-developers at L<http://qlusters.com>.  On that site you'll also find other
-products and services based on openMosix, including
-B<ClusterFrame>(tm), a "mainframe" made of commodity Linux boxes
-acting as one computer, with VM-like features, able to run multiple
-operating systems simultaneously or provide SSI for a single OS --
-very cool.  
 
 You can also find help for general infrastructure (and cluster)
 administration at L<http://www.Infrastructures.Org>.

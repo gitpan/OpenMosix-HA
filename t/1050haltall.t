@@ -19,22 +19,22 @@ my $ha = new OpenMosix::HA
 );
 
 ok($ha);
-$ha->init();
-ok $ha->{init};
-my $init=$ha->{init};
+$ha->clinit();
+ok $ha->{clinit};
+my $clinit=$ha->{clinit};
 my $rc = eval
 {
-  $ha->{init}->tell("foo","start");
-  $ha->{init}->tell("bar","1");
-  ok waitstat($init,"foo","start","DONE");
-  ok waitstat($init,"bar",1,"DONE",2);
+  $ha->{clinit}->tell("foo","start");
+  $ha->{clinit}->tell("bar","1");
+  ok waitstat($clinit,"foo","start","DONE");
+  ok waitstat($clinit,"bar",1,"DONE",2);
   $ha->haltall();
-  ok waitstat($init,"foo","stop","DONE");
-  ok waitstat($init,"bar","stop","DONE");
+  ok waitstat($clinit,"foo","stop","DONE");
+  ok waitstat($clinit,"bar","stop","DONE");
 };
 ok $rc;
 warn $@ unless $rc;
-$ha->{init}->shutdown;
+$ha->{clinit}->shutdown;
 waitdown();
 
 # use GraphViz::Data::Grapher;

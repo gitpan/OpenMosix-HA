@@ -20,9 +20,9 @@ my $ha = new OpenMosix::HA
 
 ok($ha);
 ok $ha->getcltab(1,2,3);
-my $init=$ha->init();
-ok $init;
-ok $ha->{init};
+my $clinit=$ha->clinit();
+ok $clinit;
+ok $ha->{clinit};
 my $rc = eval
 {
   my $cltab = $ha->getcltab(1,2,3);
@@ -32,7 +32,7 @@ my $rc = eval
 };
 ok $rc;
 warn $@ unless $rc;
-$ha->{init}->shutdown;
+$ha->{clinit}->shutdown;
 waitdown();
 
 # use GraphViz::Data::Grapher;

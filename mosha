@@ -7,7 +7,7 @@ my $ha=new OpenMosix::HA;
 # warn $ha->{mynode};
 # warn join ' ', $ha->nodes();
 # warn $ha->{clinit_s};
-$ha->init;
+$ha->clinit;
 # warn $ha->{init}{socket};
 $ha->monitor();
 

@@ -1,4 +1,6 @@
 
+use strict;
+use warnings;
 use Event qw(one_event loop unloop);
 use Time::HiRes qw(time);
 # use GraphViz::Data::Grapher;
@@ -78,37 +80,73 @@ sub waitdown
 {
   while(1)
   {
-    my $count = `ps -eaf 2>/dev/null | grep perl | grep $0 | grep -v defunct | grep -v runtests | grep -v grep | wc -l`;
+    # my $count = `ps -eaf 2>/dev/null | grep perl | grep $0 | grep -v defunct | grep -v runtests | grep -v grep | wc -l`;
+    my $count = `ps -eaf 2>/dev/null | grep $0 | grep 'Cluster::Init->daemon' | grep -v grep | wc -l`;
     chomp($count);
     # warn "$count still running";
-    last if $count==1;
+    last if $count<1;
     run(1);
   }
 }
 
 sub waitgstat
 {
-  my ($ha,$group,$level,$state,$timeout)=@_;
-  $timeout||=10;
+  my ($ha,$group,$level,$state,$timeout,$any)=@_;
+  $timeout||=40;
   my $start=time;
-  my $mynode = $ha->{mynode};
-  while(1)
+  my @node=($ha->{mynode});
+  @node=$ha->nodes() if $any;
+  WAIT: while(1)
   {
-    my ($hastat) = $ha->hastat($ha->nodes());
+    my ($hastat) = $ha->hastat(@node);
     debug dump $hastat;
-    my $cklevel=$hastat->{$group}{$mynode}{level} || next;
-    my $ckstate=$hastat->{$group}{$mynode}{state} || next;
-    last if $level eq $cklevel && $state eq $ckstate;
+    for my $node (@node)
+    {
+      my $cklevel=$hastat->{$group}{$node}{level} || next;
+      my $ckstate=$hastat->{$group}{$node}{state} || next;
+      last WAIT if $level eq $cklevel && $state eq $ckstate;
+    }
   }
   continue
   {
     my $line = (caller(0))[2];
     if ($start + $timeout < time)
     {
-      warn "missed line $line $group $mynode $level $state\n";
-      my ($hastat) = $ha->hastat($ha->nodes());
-      warn dump $hastat;
+      warn "missed line $line $group (@node) $level $state\n";
+      # my ($hastat) = $ha->hastat($ha->nodes());
+      # warn dump $hastat;
+      warn `cat $ha->{cltab}`;
+      warn `cat $ha->{clstat}`;
+      warn `cat $ha->{hactl}`;
+      warn `cat $ha->{hastat}`;
       return 0;
+    }
+    run(1);
+  }
+  return 1;
+}
+
+sub waitline
+{
+  my ($line,$timeout)=@_;
+  $timeout||=15;
+  my $start=time;
+  while(1)
+  {
+    open(F,"<t/out") || die $!;
+    my @F=<F>;
+    my $lastline=$F[$#F];
+    unless ($lastline)
+    {
+      run(1);
+      next;
+    }
+    chomp($lastline);
+    last if $lastline eq $line;
+    if ($start + $timeout < time)
+    {
+      warn "got $lastline wanted $line\n";
+      return 0 
     }
     run(1);
   }
@@ -134,24 +172,43 @@ sub waitstat
 
 sub waitgstop
 {
-  my ($ha,$group,$timeout)=@_;
-  $timeout||=10;
+  my ($ha,$group,$timeout,$any)=@_;
+  $timeout||=40;
   my $start=time;
-  my $mynode = $ha->{mynode};
+  my @node=($ha->{mynode});
+  @node=$ha->nodes() if $any;
+  my $hastat;
   while(1)
   {
-    my ($hastat) = $ha->hastat($ha->nodes());
+    ($hastat) = $ha->hastat(@node);
     # warn dump $hastat;
-    last unless $hastat->{$group}{$mynode};
+    # warn dump $hastat;
+    my $count=0;
+    for my $node (@node)
+    {
+      # $count++ if $hastat->{$group}{$node} && $hastat->{$group}{$node}{level};
+      $count++ if defined($hastat->{$group}{$node}{level});
+      # warn " node: $node count: $count";
+    }
+    last unless $count;
   }
   continue
   {
     my $line = (caller(0))[2];
     if ($start + $timeout < time)
     {
-      warn "missed line $line $group $mynode stop\n";
-      my ($hastat) = $ha->hastat($ha->nodes());
+      warn "missed line $line $group (@node) stop\n";
+      # warn "$start ".time;
+      # my ($hastat) = $ha->hastat($ha->nodes());
+      # warn dump $hastat;
+      # ($hastat) = $ha->hastat(@node);
+      # warn dump $hastat;
+      # ($hastat) = $ha->hastat($ha->nodes());
       warn dump $hastat;
+      warn `cat $ha->{cltab}`;
+      warn `cat $ha->{clstat}`;
+      warn `cat $ha->{hactl}`;
+      warn `cat $ha->{hastat}`;
       return 0;
     }
     run(1);
