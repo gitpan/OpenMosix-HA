@@ -20,6 +20,8 @@ for my $node qw(1 2 3)
   {
     my $ha= new OpenMosix::HA
       (
+       hpcbase=>"t/scratch/proc/hpc",
+       clinit_s=>"t/scratch/var/mosix-ha/clinit.$node.s",
        mfsbase=>"t/scratch/mfs1",
        mwhois=>'echo This is MOSIX \#'.$node
       );
@@ -39,6 +41,8 @@ __END__
 
 my $node1 = new OpenMosix::HA
 (
+ hpcbase=>"t/scratch/proc/hpc",
+ clinit_s=>"t/scratch/var/mosix-ha/clinit.s",
  mfsbase=>"t/scratch/mfs1",
  mwhois=>'echo This is MOSIX \#1'
 );
@@ -46,6 +50,8 @@ ok($node1);
 
 my $node2 = new OpenMosix::HA
 (
+ hpcbase=>"t/scratch/proc/hpc",
+ clinit_s=>"t/scratch/var/mosix-ha/clinit.s",
  mfsbase=>"t/scratch/mfs1",
  mwhois=>'echo This is MOSIX \#2'
 );
@@ -53,6 +59,8 @@ ok($node2);
 
 my $node3 = new OpenMosix::HA
 (
+ hpcbase=>"t/scratch/proc/hpc",
+ clinit_s=>"t/scratch/var/mosix-ha/clinit.s",
  mfsbase=>"t/scratch/mfs1",
  mwhois=>'echo This is MOSIX \#3'
 );

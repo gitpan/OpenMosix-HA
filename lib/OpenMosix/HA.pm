@@ -8,7 +8,7 @@ use Data::Dump qw(dump);
 BEGIN {
 	use Exporter ();
 	use vars qw ($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-	$VERSION     = 0.511;
+	$VERSION     = 0.532;
 	@ISA         = qw (Exporter);
 	@EXPORT      = qw ();
 	@EXPORT_OK   = qw ();
@@ -161,14 +161,14 @@ testing purposes.
 =item varpath
 
 The local path under C</> where the module should look for the
-C<hactl> and C<clinittab> files, and where it should put clinitstat
+C<hactl> and C<cltab> files, and where it should put clstat
   and clinit.s; this is also the subpath where it should look for
 these things on other machines, under C</mfsbase/NODE>.  Defaults to
 C<var/mosix-ha>.
 
 =item timeout
 
-The maximum age (in seconds) of any node's C<clinitstat> file, after which
+The maximum age (in seconds) of any node's C<clstat> file, after which
 the module considers that node to be stale, and calls for a STOMITH.
 Defaults to 60 seconds.
 
@@ -185,18 +185,23 @@ sub new
   my $self={@_};
   bless $self, $class;
   $self->{mfsbase}   ||="/mfs";
+  $self->{hpcbase}   ||="/proc/hpc";
   $self->{mwhois}    ||= "mosctl whois";
   $self->{mynode}    ||= $self->mosnode();
   $self->{varpath}   ||= "var/mosix-ha";
+  $self->{clinit_s}  ||= "/".$self->{varpath}."/clinit.s";
   $self->{timeout}   ||= 60;
   $self->{cycletime} ||= 1;
   $self->{stomith}   ||= sub{$self->stomith(@_)};
   $self->{mybase}      = $self->nodebase($self->{mynode});
   $self->{hactl}       = $self->{mybase}."/hactl";
-  $self->{clinittab}   = $self->{mybase}."/clinittab";
-  $self->{clinitstat}  = $self->{mybase}."/clinitstat";
+  $self->{cltab}       = $self->{mybase}."/cltab";
+  $self->{clstat}      = $self->{mybase}."/clstat";
   $self->{hastat}      = $self->{mybase}."/hastat";
-  $self->{clinit_s}    = $self->{mybase}."/clinit.s";
+  unless (-d $self->{mybase})
+  {
+    mkdir $self->{mybase} || die $!;
+  }
   return $self;
 }
 
@@ -204,8 +209,8 @@ sub init
 {
   my $self=shift;
   my %parms = (
-    'initstat' => $self->{clinitstat},
-    'inittab' => $self->{clinittab},
+    'clstat' => $self->{clstat},
+    'cltab' => $self->{cltab},
     'socket' => $self->{clinit_s}
   );
   # start daemon
@@ -224,12 +229,12 @@ sub init
 =item monitor()
 
 Starts the monitor daemon.  The monitor ensures the resource groups in
-C<clinittab> are each running somewhere in the cluster, at the
+C<cltab> are each running somewhere in the cluster, at the
 runlevels specified in C<hactl>.  Any resource groups found not
 running are candidates for a restart on the local node.
 
 Before restarting a resource group, the local monitor announces its
-intentions in the local C<clinitstat> file, and observes C<clinitstat> on
+intentions in the local C<clstat> file, and observes C<clstat> on
 other nodes.  If the monitor on any other node also intends to start
 the same resource group, then the local monitor will detect this and
 cancel its own restart.  The checks and restarts are staggered by
@@ -243,7 +248,7 @@ sub monitor
 {
   my $self=shift;
   my $runtime=shift || 999999999;
-  $self->getclinittab($self->nodes);
+  $self->getcltab($self->nodes);
   $self->init() unless $self->{init};
   my $init=$self->{init};
   my $start=time();
@@ -257,13 +262,13 @@ sub monitor
       run(30);
       next;
     }
-    # build consolidated clinitstat 
+    # build consolidated clstat 
     my ($hastat,$stomlist)=$self->hastat(@node);
     # STOMITH stale nodes
     $self->stomscan($stomlist) if time > $start + 120;
-    # get and read latest hactl and clinittab
+    # get and read latest hactl and cltab
     my $hactl=$self->gethactl(@node);
-    my $clinittab=$self->getclinittab(@node);
+    my $cltab=$self->getcltab(@node);
     $self->scangroups($hastat,$hactl,@node);
     warn "node $self->{mynode} cycletime $self->{cycletime}\n";
     run($self->cycletime) if $self->cycletime + time < $stop;
@@ -325,7 +330,7 @@ sub compile_metrics
   }
   if ($metric{islocal})
   {
-    # run levels which must be defined in clinittab: plan test stop 
+    # run levels which must be defined in cltab: plan test stop 
     # ("start" or equivalent is defined in hactl)
     my $level=$hastat->{$group}{$mynode}{level};
     my $state=$hastat->{$group}{$mynode}{state};
@@ -388,30 +393,30 @@ sub gethactl
   return $hactl;
 }
 
-# get latest clinittab file
-sub getclinittab
+# get latest cltab file
+sub getcltab
 {
   my $self=shift;
   my @node=@_;
-  if ($self->getlatest("clinittab",@node))
+  if ($self->getlatest("cltab",@node))
   {
-    # reread inittab if it changed
+    # reread cltab if it changed
     # if $self->{init}
     # XXX $self->tell("::ALL::","::REREAD::");
   }
   # return the contents
-  my $clinittab;
-  open(CLINITTAB,"<".$self->{clinittab}) || die $!;
-  while(<CLINITTAB>)
+  my $cltab;
+  open(CLTAB,"<".$self->{cltab}) || die $!;
+  while(<CLTAB>)
   {
     next if /^\s*#/;
     next if /^\s*$/;
     chomp;
     my ($group,$tag,$level,$mode)=split(':');
     next unless $group;
-    $clinittab->{$group}=1;
+    $cltab->{$group}=1;
   }
-  return $clinittab;
+  return $cltab;
 }
 
 # get the latest version of a file
@@ -462,7 +467,7 @@ sub haltall
   }
 }
 
-# build consolidated clinitstat and STOMITH stale nodes
+# build consolidated clstat and STOMITH stale nodes
 sub hastat
 {
   my $self=shift;
@@ -472,12 +477,12 @@ sub hastat
   for my $node (@node)
   {
     my $base=$self->nodebase($node);
-    my $file="$base/clinitstat";
+    my $file="$base/clstat";
     next unless -f $file;
     my $age = -M $file;
     debug "$node age $age\n";
     # STOMITH stale nodes
-    unless ($age && $age < $self->{timeout}/86400)
+    if ($age > $self->{timeout}/86400)
     {
       debug "$node is old\n";
       unless($node == $self->{mynode})
@@ -485,8 +490,8 @@ sub hastat
 	push @stomlist, $node;
       }
     }
-    open(CLINITSTAT,"<$file") || next;
-    while(<CLINITSTAT>)
+    open(CLSTAT,"<$file") || next;
+    while(<CLSTAT>)
     {
       chomp;
       my ($class,$group,$level,$state) = split;
@@ -530,13 +535,24 @@ sub nodebase
   return $base;
 }
 
-# build list of nodes by looking in /mfs to collect node numbers
+# build list of nodes by looking in /proc/hpc/nodes
 sub nodes
 {
   my $self=shift;
-  opendir(MFS,$self->{mfsbase}) || die $!;
-  my @node = grep /^\d/, readdir(MFS);
-  return @node;
+  opendir(NODES,$self->{hpcbase}."/nodes") || die $!;
+  my @node = grep /^\d/, readdir(NODES);
+  closedir NODES;
+  my @upnode;
+  # check availability 
+  for my $node (@node)
+  {
+    open(STATUS,$self->{hpcbase}."/nodes/$node/status") || next;
+    chomp(my $status=<STATUS>);
+    # XXX status bits mean what?
+    next unless $status & 2;
+    push @upnode, $node;
+  }
+  return @upnode;
 }
 
 # halt all resource groups if we've lost quorum
@@ -692,6 +708,7 @@ sub DESTROY
 {
   my $self=shift;
   unlink $self->{hastat};
+  unlink $self->{clstat};
 }
 
 =back

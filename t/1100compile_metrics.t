@@ -17,6 +17,8 @@ my %metric;
 
 $ha = new OpenMosix::HA
 (
+ hpcbase=>"t/scratch/proc/hpc",
+ clinit_s=>"t/scratch/var/mosix-ha/clinit.s",
  mfsbase=>"t/scratch/mfs1",
  mwhois=>'echo This is MOSIX \#1'
 );
@@ -100,6 +102,8 @@ ok $metric{deleted};
 
 $ha = new OpenMosix::HA
 (
+ hpcbase=>"t/scratch/proc/hpc",
+ clinit_s=>"t/scratch/var/mosix-ha/clinit.s",
  mfsbase=>"t/scratch/mfs1",
  mwhois=>'echo This is MOSIX \#2'
 );
@@ -147,6 +151,8 @@ ok ! $metric{deleted};
 
 $ha = new OpenMosix::HA
 (
+ hpcbase=>"t/scratch/proc/hpc",
+ clinit_s=>"t/scratch/var/mosix-ha/clinit.s",
  mfsbase=>"t/scratch/mfs1",
  mwhois=>'echo This is MOSIX \#3'
 );

@@ -8,16 +8,12 @@
 # location of socket
 # :::socket:t/clinit.s
 # location of status file
-# :::initstat:t/clinitstat
+# :::clstat:t/clstat
 # location of log file
 :::log:t/clinitlog
-foo:foo1:start,:wait:/bin/echo "hello world!" > t/out
-bar:bar1:12:once:/bin/echo foo1start >t/out;sleep 1;/bin/echo foo1end >t/out
-new:new1:start,:wait:/bin/true
-bad:bad1:test,:test:/bin/false
-bad:bad2:start,:wait:/bin/echo "bad1" > t/out2
-del:del1:start,:wait:/bin/true
-baz:baz1:test,:test:/bin/true
+bad:bad1:plan:wait:echo hello
+bad:bad2:test:test:/bin/false
+# bad:bad2:start:wait:/bin/echo "bad1" > t/out2
 
 # ### junk below here
 # hellogrp:hello2:2:respawn:/bin/echo "hello world!" >> t/out

@@ -12,21 +12,23 @@ use OpenMosix::HA;
 
 my $ha = new OpenMosix::HA
 (
+ hpcbase=>"t/scratch/proc/hpc",
+ clinit_s=>"t/scratch/var/mosix-ha/clinit.s",
  mfsbase=>"t/scratch/mfs1",
  mwhois=>'echo This is MOSIX \#3'
 );
 
 ok($ha);
-ok $ha->getclinittab(1,2,3);
+ok $ha->getcltab(1,2,3);
 my $init=$ha->init();
 ok $init;
 ok $ha->{init};
 my $rc = eval
 {
-  my $clinittab = $ha->getclinittab(1,2,3);
+  my $cltab = $ha->getcltab(1,2,3);
   # XXX check for reread 
-  ok $clinittab->{foo};
-  ok $clinittab->{bar};
+  ok $cltab->{foo};
+  ok $cltab->{bar};
 };
 ok $rc;
 warn $@ unless $rc;

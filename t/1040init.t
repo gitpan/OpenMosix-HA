@@ -12,13 +12,15 @@ use OpenMosix::HA;
 
 my $ha = new OpenMosix::HA
 (
+ hpcbase=>"t/scratch/proc/hpc",
+ clinit_s=>"t/scratch/var/mosix-ha/clinit.s",
  mfsbase=>"t/scratch/mfs1",
  mynode=>1
 );
 
 ok($ha);
 $ha->init();
-$DB::single=1;
+# warn $ha->{init}->{'socket'};
 ok($ha->{init});
 # my $can=$ha->{init}->can('shutdown');
 $ha->{init}->shutdown;

@@ -1,12 +1,15 @@
 
 use Event qw(one_event loop unloop);
 use Time::HiRes qw(time);
-use GraphViz::Data::Grapher;
+# use GraphViz::Data::Grapher;
 use Data::Dump qw(dump);
 use Digest::MD5;
 
-`touch -t 198101010101 t/master/mfs1/1/var/mosix-ha/clinitstat`;
-`touch -t 198201010101 t/master/mfs1/2/var/mosix-ha/clinitstat`;
+`touch -t 198101010101 t/master/mfs1/1/var/mosix-ha/clstat`;
+`touch -t 198201010101 t/master/mfs1/2/var/mosix-ha/clstat`;
+`mkdir -p              t/master/mfs1/3`;
+`mkdir -p              t/master/var/mosix-ha`;
+`touch                 t/master/mfs1/1/var/mosix-ha/hactl`;
 `rm -rf t/scratch; cp -rp t/master t/scratch`;
 my %stomlist;
 

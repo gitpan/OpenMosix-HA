@@ -1,10 +1,15 @@
+
+stomith timeout is 10x too long?
+
+finish mosha
+
+stomith test 7 failed on node21
+
 write monitor test cases
 
 make quorum count persistent -- store on disk
 
-go through both Cluster::Init and OpenMosix::HA and remove 'init';
-i.e. cltab, clstat, cl.s, hastat, hactl
-
 detect INITTAB_NOK
 
 clean up and make uniform PASS/PASSED/FAIL/FAILED in HA and Init
+

@@ -14,6 +14,8 @@ my $ha;
 
 $ha = new OpenMosix::HA
 (
+ hpcbase=>"t/scratch/proc/hpc",
+ clinit_s=>"t/scratch/var/mosix-ha/clinit.s",
  mfsbase=>"t/scratch/mfs1",
  mwhois=>'echo This is MOSIX \#3'
 );

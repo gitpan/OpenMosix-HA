@@ -12,6 +12,8 @@ use OpenMosix::HA;
 
 my $ha = new OpenMosix::HA
 (
+ hpcbase=>"t/scratch/proc/hpc",
+ clinit_s=>"t/scratch/var/mosix-ha/clinit.s",
  mfsbase=>"t/scratch/mfs1",
  mynode=>2
 );

@@ -12,6 +12,8 @@ use OpenMosix::HA;
 
 my $ha = new OpenMosix::HA
 (
+ hpcbase=>"t/scratch/proc/hpc",
+ clinit_s=>"t/scratch/var/mosix-ha/clinit.s",
  mfsbase=>"t/scratch/mfs1",
  mwhois=>'echo This is MOSIX \#1',
  stomith=>\&stomith
@@ -25,7 +27,7 @@ ok ! stomck(1);
 ok stomck(2);
 ok ! stomck(3);
 ok ! stomck(4);
-`touch t/scratch/mfs1/2/var/mosix-ha/clinitstat`;
+`touch t/scratch/mfs1/2/var/mosix-ha/clstat`;
 stomreset();
 ($hastat,$stomlist) = $ha->hastat(1,2,3);
 $ha->stomscan($stomlist);

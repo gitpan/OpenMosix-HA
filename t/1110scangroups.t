@@ -9,7 +9,7 @@ BEGIN { plan tests => 53 }
 
 use OpenMosix::HA;
 use Data::Dump qw(dump);
-use Devel::Trace qw(trace);
+# use Devel::Trace qw(trace);
 
 my $ha;
 my $hastat;
@@ -18,12 +18,14 @@ my %metric;
 
 $ha = new OpenMosix::HA
 (
+ hpcbase=>"t/scratch/proc/hpc",
+ clinit_s=>"t/scratch/var/mosix-ha/clinit.s",
  mfsbase=>"t/scratch/mfs1",
  mwhois=>'echo This is MOSIX \#1'
 );
 ok($ha);
-# system("cat t/scratch/mfs1/1/var/mosix-ha/clinittab");
-ok $ha->getclinittab(1,2,3);
+# system("cat t/scratch/mfs1/1/var/mosix-ha/cltab");
+ok $ha->getcltab(1,2,3);
 ok $ha->init();
 ok $ha->{init};
 $hactl=$ha->gethactl(1,2,3);
@@ -61,11 +63,13 @@ waitdown();
 
 $ha = new OpenMosix::HA
 (
+ hpcbase=>"t/scratch/proc/hpc",
+ clinit_s=>"t/scratch/var/mosix-ha/clinit.s",
  mfsbase=>"t/scratch/mfs1",
  mwhois=>'echo This is MOSIX \#2'
 );
 ok($ha);
-ok $ha->getclinittab(1,2,3);
+ok $ha->getcltab(1,2,3);
 ok $ha->init();
 ok $ha->{init};
 $hactl=$ha->gethactl(1,2,3);
@@ -92,11 +96,13 @@ waitdown();
 
 $ha = new OpenMosix::HA
 (
+ hpcbase=>"t/scratch/proc/hpc",
+ clinit_s=>"t/scratch/var/mosix-ha/clinit.s",
  mfsbase=>"t/scratch/mfs1",
  mwhois=>'echo This is MOSIX \#3'
 );
 ok($ha);
-ok $ha->getclinittab(1,2,3);
+ok $ha->getcltab(1,2,3);
 ok $ha->init();
 ok $ha->{init};
 $hactl=$ha->gethactl(1,2,3);
